@@ -20,6 +20,7 @@ async function init() {
     state.profile = session.profile;
     state.signedIn = session.signedIn;
     updateProfile(state.profile, state.signedIn);
+    els.profileMenu.classList.toggle("hidden", !session.signedIn);
     els.signInButton.classList.toggle("hidden", session.signedIn);
     els.signOutButton.classList.toggle("hidden", !session.signedIn);
     els.controls.classList.toggle("hidden", !showWorkspace);
@@ -52,6 +53,7 @@ async function loadLeagues() {
     throw error;
   }
   const allLeagues = data.leagues || [];
+  updateProfileFromTeam(data.myTeamManager);
   state.leagues = filterRecentLeagues(allLeagues);
 
   if (!state.leagues.length) {
