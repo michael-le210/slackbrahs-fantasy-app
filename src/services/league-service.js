@@ -46,6 +46,23 @@ export class LeagueService {
     return session.h2hLeagues;
   }
 
+  async getSignedInManager(session, leagues = session.h2hLeagues || []) {
+    if (session.myTeamManager) return session.myTeamManager;
+    const league = leagues[0];
+    if (!league?.leagueKey) return "";
+
+    try {
+      const gameKey = league.leagueKey.split(".l.")[0];
+      const userTeams = await this.getUserTeams(session, gameKey);
+      const team = userTeams.find((item) => item.leagueKey === league.leagueKey) || userTeams.find((item) => item.manager);
+      session.myTeamManager = team?.manager || "";
+    } catch (error) {
+      console.warn(`Unable to identify the signed-in Yahoo manager: ${error.message}`);
+    }
+
+    return session.myTeamManager || "";
+  }
+
   async getWeek(session, leagueKey, week) {
     const gameKey = leagueKey.split(".l.")[0];
     const [data, statCategories, userTeams] = await Promise.all([

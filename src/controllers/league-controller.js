@@ -8,7 +8,8 @@ export class LeagueController {
   async index({ res, session }) {
     requireSignedIn(session);
     const leagues = await this.leagueService.listHistoricalH2h(session);
-    return sendJson(res, { leagues });
+    const myTeamManager = await this.leagueService.getSignedInManager(session, leagues);
+    return sendJson(res, { leagues, myTeamManager });
   }
 
   async showWeek({ res, session, url }) {

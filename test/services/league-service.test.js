@@ -6,6 +6,40 @@ import { LeagueService } from "../../src/services/league-service.js";
 const leagueKey = "466.l.123";
 const gameKey = "466";
 
+test("finds the signed-in manager before a week is loaded", async () => {
+  const yahooApi = {
+    fetch: async (_session, path) => {
+      assert.equal(path, `/users;use_login=1/games;game_keys=${gameKey}/teams/`);
+      return {
+        fantasy_content: {
+          users: {
+            user: {
+              games: {
+                game: {
+                  teams: {
+                    team: {
+                      team_key: "466.l.123.t.1",
+                      league_key: leagueKey,
+                      managers: [{ manager: { nickname: "Michael" } }]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      };
+    }
+  };
+  const service = new LeagueService(yahooApi);
+  const session = { token: { accessToken: "token", expiresAt: Date.now() + 60_000 } };
+
+  const manager = await service.getSignedInManager(session, [{ leagueKey }]);
+
+  assert.equal(manager, "Michael");
+  assert.equal(session.myTeamManager, "Michael");
+});
+
 test("adds a league-wide comparison to the weekly response", async () => {
   const responses = new Map([
     [
