@@ -1,0 +1,5 @@
+.env
+node_modules
+.tools/
+.certs/
+.DS_Store

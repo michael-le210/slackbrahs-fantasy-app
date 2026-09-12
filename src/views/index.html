@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Compare Yahoo Fantasy Basketball category strength across your league." />
+    <title>Slackbrahs Fantasy Tool</title>
+    <link rel="icon" href="/slackbrahs-icon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/slackbrahs-icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div class="brand-lockup">
+          <img class="app-mark" src="/slackbrahs-icon.png" alt="" />
+          <p class="eyebrow">Yahoo Fantasy Basketball</p>
+          <h1>Slackbrahs Fantasy Tool</h1>
+        </div>
+        <div class="auth-actions">
+          <div class="profile-menu" id="profileMenu">
+            <button class="button ghost profile-button" id="profileButton" type="button" aria-haspopup="true" aria-expanded="false">
+              <span class="profile-avatar" id="profileAvatar" aria-hidden="true">?</span>
+              <span>Profile</span>
+              <span class="select-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="profile-popover hidden" id="profilePopover">
+              <div class="profile-details">
+                <strong id="profileName">Not signed in</strong>
+              </div>
+              <div class="profile-divider"></div>
+              <button class="profile-action" id="themeToggle" type="button" aria-pressed="true">Light mode</button>
+              <a class="profile-action hidden" id="signOutButton" href="/auth/logout">Sign out</a>
+            </div>
+          </div>
+          <a class="button primary" id="signInButton" href="/auth/yahoo">Sign in with Yahoo</a>
+        </div>
+      </section>
+
+      <section class="controls hidden" id="controls" aria-label="League controls">
+        <label>
+          League
+          <select id="leagueSelect" disabled>
+            <option>Sign in to load leagues</option>
+          </select>
+        </label>
+        <label>
+          Week
+          <div class="week-picker" id="weekPicker">
+            <button
+              class="week-picker-button"
+              id="weekPickerButton"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              disabled
+            >
+              <span id="weekPickerValue">Select week</span>
+              <span class="select-chevron" aria-hidden="true"></span>
+            </button>
+            <div class="week-picker-menu hidden" id="weekPickerMenu" role="listbox" tabindex="-1"></div>
+            <select id="weekInput" class="visually-hidden" tabindex="-1" aria-hidden="true" disabled>
+              <option value="">Select week</option>
+            </select>
+          </div>
+        </label>
+        <button id="loadButton" class="button secondary" disabled>Load week</button>
+        <label class="checkbox-label">
+          <input id="showRanks" type="checkbox" checked />
+          <span>Show team ranks per category</span>
+        </label>
+      </section>
+
+      <nav class="view-tabs hidden" id="viewTabs" aria-label="Weekly views">
+        <button id="comparisonTab" class="view-tab active" type="button" aria-selected="true">Weekly comparison</button>
+        <button id="strengthsTab" class="view-tab" type="button" aria-selected="false">Category strengths</button>
+        <button id="averagesTab" class="view-tab" type="button" aria-selected="false">League averages</button>
+      </nav>
+
+      <section class="status-row">
+        <div class="status" id="status">
+          Sign in with Yahoo to compare weekly category totals across your league.
+        </div>
+        <button id="retryLeaguesButton" class="button ghost hidden" type="button">Retry loading leagues</button>
+      </section>
+
+      <section id="scoreboard" class="scoreboard" aria-live="polite"></section>
+    </main>
+    <script src="/client.js" type="module"></script>
+  </body>
+</html>
