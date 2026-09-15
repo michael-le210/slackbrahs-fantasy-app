@@ -9,7 +9,7 @@ import { YahooApiService } from "./services/yahoo-api-service.js";
 import { sendJson } from "./utils/http.js";
 
 export function createApp(config) {
-  const sessionStore = new SessionStore();
+  const sessionStore = new SessionStore({ secure: config.protocol === "https" });
   const yahooApi = new YahooApiService(config);
   const leagueService = new LeagueService(yahooApi);
   const route = createRouter({
@@ -25,7 +25,7 @@ export function createApp(config) {
       const session = sessionStore.get(req, res);
       return await route({ req, res, url, session });
     } catch (error) {
-      console.error(error);
+      if (!error.status || error.status >= 500) console.error(error);
       return sendJson(res, { error: error.message || "Unexpected server error" }, error.status || 500);
     }
   };

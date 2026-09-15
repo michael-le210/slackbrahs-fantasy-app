@@ -21,7 +21,7 @@ export class LeagueController {
     if (!/^[A-Za-z0-9_-]+\.l\.\d+$/.test(leagueKey)) {
       return sendJson(res, { error: "leagueKey is invalid" }, 400);
     }
-    if (week && !/^\d{1,2}$/.test(week)) {
+    if (week && !/^[1-9]\d?$/.test(week)) {
       return sendJson(res, { error: "week must be a positive integer" }, 400);
     }
 

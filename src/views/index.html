@@ -19,18 +19,18 @@
         </div>
         <div class="auth-actions">
           <div class="profile-menu hidden" id="profileMenu">
-            <button class="button ghost profile-button" id="profileButton" type="button" aria-haspopup="true" aria-expanded="false">
+            <button class="button ghost profile-button" id="profileButton" type="button" aria-haspopup="menu" aria-controls="profilePopover" aria-expanded="false">
               <span class="profile-avatar" id="profileAvatar" aria-hidden="true">?</span>
               <span>Profile</span>
               <span class="select-chevron" aria-hidden="true"></span>
             </button>
-            <div class="profile-popover hidden" id="profilePopover">
+            <div class="profile-popover hidden" id="profilePopover" role="menu" aria-labelledby="profileButton">
               <div class="profile-details">
                 <strong id="profileName">Not signed in</strong>
               </div>
               <div class="profile-divider"></div>
-              <button class="profile-action" id="themeToggle" type="button" aria-pressed="true">Light mode</button>
-              <a class="profile-action hidden" id="signOutButton" href="/auth/logout">Sign out</a>
+              <button class="profile-action" id="themeToggle" type="button" role="menuitem" aria-pressed="true">Light mode</button>
+              <a class="profile-action hidden" id="signOutButton" href="/auth/logout" role="menuitem">Sign out</a>
             </div>
           </div>
           <a class="button primary" id="signInButton" href="/auth/yahoo">Sign in with Yahoo</a>
@@ -52,6 +52,7 @@
               id="weekPickerButton"
               type="button"
               aria-haspopup="listbox"
+              aria-controls="weekPickerMenu"
               aria-expanded="false"
               disabled
             >
@@ -71,10 +72,10 @@
         </label>
       </section>
 
-      <nav class="view-tabs hidden" id="viewTabs" aria-label="Weekly views">
-        <button id="comparisonTab" class="view-tab active" type="button" aria-selected="true">Weekly comparison</button>
-        <button id="strengthsTab" class="view-tab" type="button" aria-selected="false">Category strengths</button>
-        <button id="averagesTab" class="view-tab" type="button" aria-selected="false">League averages</button>
+      <nav class="view-tabs hidden" id="viewTabs" aria-label="Weekly views" role="tablist">
+        <button id="comparisonTab" class="view-tab active" type="button" role="tab" aria-controls="scoreboard" aria-selected="true" tabindex="0">Weekly comparison</button>
+        <button id="strengthsTab" class="view-tab" type="button" role="tab" aria-controls="scoreboard" aria-selected="false" tabindex="-1">Category strengths</button>
+        <button id="averagesTab" class="view-tab" type="button" role="tab" aria-controls="scoreboard" aria-selected="false" tabindex="-1">League averages</button>
       </nav>
 
       <section class="status-row">
@@ -84,7 +85,7 @@
         <button id="retryLeaguesButton" class="button ghost hidden" type="button">Retry loading leagues</button>
       </section>
 
-      <section id="scoreboard" class="scoreboard" aria-live="polite"></section>
+      <section id="scoreboard" class="scoreboard" role="tabpanel" aria-live="polite"></section>
     </main>
     <script src="/client.js" type="module"></script>
   </body>

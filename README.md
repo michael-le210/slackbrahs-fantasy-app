@@ -11,7 +11,6 @@ A small Yahoo Fantasy Basketball dashboard for comparing weekly category perform
    YAHOO_CLIENT_ID=your-client-id
    YAHOO_CLIENT_SECRET=your-client-secret
    YAHOO_REDIRECT_URI=https://localhost:3000/auth/callback
-   SESSION_SECRET=use-a-long-random-string
    PORT=3000
    ```
 
@@ -28,5 +27,5 @@ A small Yahoo Fantasy Basketball dashboard for comparing weekly category perform
 ## Tests
 
 ```bash
-./.tools/node/bin/node --test
+npm test
 ```

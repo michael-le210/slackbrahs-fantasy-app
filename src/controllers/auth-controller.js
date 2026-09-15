@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import { parseCookies, sessionCookie } from "../middleware/session-store.js";
+import { parseCookies } from "../middleware/session-store.js";
 import { redirect, sendHtml } from "../utils/http.js";
 
 const oauthStateCookieName = "yfb_oauth_state";
@@ -22,7 +22,7 @@ export class AuthController {
     }
 
     session.oauthState = crypto.randomBytes(16).toString("hex");
-    appendCookie(res, `${oauthStateCookieName}=${session.oauthState}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`);
+    appendCookie(res, oauthStateCookie(session.oauthState, 600, this.config.protocol === "https"));
     return redirect(res, this.yahooApi.authorizationUrl(session.oauthState));
   }
 
@@ -32,28 +32,40 @@ export class AuthController {
     const oauthError = url.searchParams.get("error");
     const oauthErrorDescription = url.searchParams.get("error_description");
     if (oauthError) {
+      appendCookie(res, oauthStateCookie("", 0, this.config.protocol === "https"));
       return sendHtml(
         res,
-        `<h1>Yahoo sign-in was not completed</h1><p>${escapeHtml(oauthErrorDescription || oauthError)}. Return to the app and try again, accepting the requested Yahoo profile permissions.</p>`,
+        `<h1>Yahoo sign-in was not completed</h1><p>${escapeHtml(oauthErrorDescription || oauthError)}. Return to the app and try again.</p>`,
         400
       );
     }
 
     const cookieState = parseCookies(req.headers.cookie || "")[oauthStateCookieName];
     if (!code || !state || (state !== session.oauthState && state !== cookieState)) {
+      appendCookie(res, oauthStateCookie("", 0, this.config.protocol === "https"));
       return sendHtml(res, "<h1>Invalid Yahoo callback</h1><p>Try signing in again.</p>", 400);
     }
 
     const token = await this.yahooApi.exchangeAuthorizationCode(code);
     this.yahooApi.saveToken(session, token);
     delete session.oauthState;
+    appendCookie(res, oauthStateCookie("", 0, this.config.protocol === "https"));
     return redirect(res, "/");
   }
 
   logout({ res, session }) {
     this.sessionStore.destroy(session);
-    return redirect(res, "/", { "Set-Cookie": sessionCookie("", 0) });
+    return redirect(res, "/", {
+      "Set-Cookie": [
+        this.sessionStore.cookie("", 0),
+        oauthStateCookie("", 0, this.config.protocol === "https")
+      ]
+    });
   }
+}
+
+function oauthStateCookie(value, maxAge, secure) {
+  return `${oauthStateCookieName}=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
 }
 
 function appendCookie(res, cookie) {

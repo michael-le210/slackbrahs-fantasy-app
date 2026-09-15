@@ -15,7 +15,7 @@ init();
 
 async function init() {
   try {
-    const session = await requestJson("/api/me");
+    const session = await getJson("/api/me");
     const showWorkspace = session.signedIn && !session.needsConfig;
     state.profile = session.profile;
     state.signedIn = session.signedIn;
@@ -38,7 +38,7 @@ async function init() {
 
     await loadLeagues();
   } catch (error) {
-    console.error(error);
+    reportError(error);
   }
 }
 
@@ -47,10 +47,11 @@ async function loadLeagues() {
   els.retryLeaguesButton.classList.add("hidden");
   let data;
   try {
-    data = await requestJson("/api/leagues");
+    data = await getJson("/api/leagues");
   } catch (error) {
     els.retryLeaguesButton.classList.remove("hidden");
-    throw error;
+    reportError(error);
+    return;
   }
   const allLeagues = data.leagues || [];
   updateProfileFromTeam(data.myTeamManager);
@@ -81,7 +82,7 @@ async function loadLeagues() {
 }
 
 els.retryLeaguesButton.addEventListener("click", () => {
-  loadLeagues().catch((error) => console.error(error));
+  void loadLeagues();
 });
 
 els.profileButton.addEventListener("click", () => {
@@ -92,12 +93,19 @@ document.addEventListener("click", (event) => {
   if (!els.profileMenu.contains(event.target)) setProfileOpen(false);
 });
 
+els.profilePopover.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  setProfileOpen(false);
+  els.profileButton.focus();
+});
+
 els.weekPickerButton.addEventListener("click", () => {
   setWeekPickerOpen(els.weekPickerMenu.classList.contains("hidden"));
 });
 
 els.weekPickerButton.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+  if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
     event.preventDefault();
     setWeekPickerOpen(true);
     focusSelectedWeek();
@@ -107,7 +115,7 @@ els.weekPickerButton.addEventListener("keydown", (event) => {
 els.weekPickerMenu.addEventListener("click", (event) => {
   const option = event.target.closest("[data-week-value]");
   if (!option) return;
-  setSelectedWeek(option.dataset.weekValue);
+  setSelectedWeek(option.dataset.weekValue, { invalidateComparison: true });
   setWeekPickerOpen(false);
   els.weekPickerButton.focus();
 });
@@ -117,7 +125,7 @@ els.weekPickerMenu.addEventListener("keydown", (event) => {
     event.preventDefault();
     const option = event.target.closest("[data-week-value]");
     if (option) {
-      setSelectedWeek(option.dataset.weekValue);
+      setSelectedWeek(option.dataset.weekValue, { invalidateComparison: true });
       setWeekPickerOpen(false);
       els.weekPickerButton.focus();
     }
@@ -127,6 +135,12 @@ els.weekPickerMenu.addEventListener("keydown", (event) => {
     event.preventDefault();
     setWeekPickerOpen(false);
     els.weekPickerButton.focus();
+    return;
+  }
+  if (event.key === "Home" || event.key === "End") {
+    event.preventDefault();
+    const options = [...els.weekPickerMenu.querySelectorAll("[data-week-value]")];
+    options[event.key === "Home" ? 0 : options.length - 1]?.focus();
     return;
   }
   if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -180,9 +194,14 @@ function setProfileOpen(open) {
 
 els.leagueSelect.addEventListener("change", () => {
   state.selectedLeague = els.leagueSelect.value;
+  state.weeklyRequestId += 1;
+  state.categoryStrengthsRequestId += 1;
   state.latestScoreboard = null;
   state.categoryStrengths = null;
   state.categoryStrengthsLeague = "";
+  state.categoryStrengthsLoadingLeague = "";
+  els.loadButton.disabled = false;
+  els.scoreboard.innerHTML = "";
   const league = state.leagues.find((item) => item.leagueKey === state.selectedLeague);
   updateWeekInput(league);
   setActiveView("comparison");
@@ -211,7 +230,8 @@ function updateWeekInput(league) {
   setWeekPickerOpen(false);
 }
 
-function setSelectedWeek(value) {
+function setSelectedWeek(value, { invalidateComparison = false } = {}) {
+  const changed = els.weekInput.value !== value;
   els.weekInput.value = value;
   els.weekPickerValue.textContent = value ? `Week ${value}` : "Select week";
   els.weekPickerMenu.querySelectorAll("[data-week-value]").forEach((option) => {
@@ -219,6 +239,15 @@ function setSelectedWeek(value) {
     option.classList.toggle("selected", selected);
     option.setAttribute("aria-selected", String(selected));
   });
+  if (changed && invalidateComparison) {
+    state.weeklyRequestId += 1;
+    state.latestScoreboard = null;
+    els.loadButton.disabled = false;
+    if (state.activeView === "comparison") {
+      els.scoreboard.innerHTML = "";
+      setAppStatus("Load the selected week to update the comparison.");
+    }
+  }
 }
 
 function setWeekPickerOpen(open) {
@@ -232,12 +261,13 @@ function focusSelectedWeek() {
 }
 
 els.loadButton.addEventListener("click", () => {
-  loadWeeklyComparison().catch((error) => console.error(error));
+  void loadWeeklyComparison();
 });
 
 async function loadWeeklyComparison() {
   if (!els.leagueSelect.value) return;
   const requestedLeague = els.leagueSelect.value;
+  const requestId = ++state.weeklyRequestId;
   const params = new URLSearchParams({ leagueKey: requestedLeague });
   if (els.weekInput.value) params.set("week", els.weekInput.value);
 
@@ -245,13 +275,16 @@ async function loadWeeklyComparison() {
   setAppStatus("Loading weekly comparison...");
   els.scoreboard.innerHTML = "";
   try {
-    const data = await requestJson(`/api/league-week?${params}`);
+    const data = await getJson(`/api/league-week?${params}`);
+    if (requestId !== state.weeklyRequestId || state.selectedLeague !== requestedLeague) return;
     state.latestScoreboard = data;
     if (state.activeView === "comparison" && state.selectedLeague === requestedLeague) {
       showScoreboard(data);
     }
+  } catch (error) {
+    if (requestId === state.weeklyRequestId) reportError(error);
   } finally {
-    els.loadButton.disabled = false;
+    if (requestId === state.weeklyRequestId) els.loadButton.disabled = false;
   }
 }
 
@@ -270,6 +303,20 @@ els.comparisonTab.addEventListener("click", () => setActiveView("comparison", tr
 els.strengthsTab.addEventListener("click", () => setActiveView("strengths"));
 els.averagesTab.addEventListener("click", () => setActiveView("averages"));
 
+els.viewTabs.addEventListener("keydown", (event) => {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const tabs = [els.comparisonTab, els.strengthsTab, els.averagesTab];
+  const currentIndex = Math.max(0, tabs.indexOf(document.activeElement));
+  const nextIndex = event.key === "Home"
+    ? 0
+    : event.key === "End"
+      ? tabs.length - 1
+      : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[nextIndex].focus();
+  tabs[nextIndex].click();
+});
+
 function setActiveView(view, loadComparison = false) {
   state.activeView = view;
   const comparisonActive = view === "comparison";
@@ -281,15 +328,19 @@ function setActiveView(view, loadComparison = false) {
   els.comparisonTab.setAttribute("aria-selected", String(comparisonActive));
   els.strengthsTab.setAttribute("aria-selected", String(strengthsActive));
   els.averagesTab.setAttribute("aria-selected", String(averagesActive));
+  els.comparisonTab.tabIndex = comparisonActive ? 0 : -1;
+  els.strengthsTab.tabIndex = strengthsActive ? 0 : -1;
+  els.averagesTab.tabIndex = averagesActive ? 0 : -1;
 
   if (comparisonActive) {
     if (state.latestScoreboard) showScoreboard(state.latestScoreboard);
-    else if (loadComparison && state.selectedLeague) loadWeeklyComparison().catch((error) => console.error(error));
+    else if (loadComparison && state.selectedLeague) void loadWeeklyComparison();
     else setAppStatus("Choose a league and week, then load the weekly comparison.");
     return;
   }
 
   if (!state.selectedLeague) {
+    els.scoreboard.innerHTML = "";
     setAppStatus(`Sign in and choose a league to load ${averagesActive ? "league averages" : "category strengths"}.`);
     return;
   }
@@ -298,12 +349,13 @@ function setActiveView(view, loadComparison = false) {
     else if (averagesActive && state.categoryStrengths.averages) showAverages(state.categoryStrengths.averages);
     return;
   }
-  loadCategoryStrengths();
+  void loadCategoryStrengths();
 }
 
 function showScoreboard(data) {
   const rows = data.comparison?.rows || [];
   if (!rows.length) {
+    els.scoreboard.innerHTML = "";
     setAppStatus("No category totals were found for that league/week. Check Fantasy Sports Read permission in Yahoo.");
     return;
   }
@@ -321,12 +373,16 @@ function showScoreboard(data) {
 
 async function loadCategoryStrengths() {
   const requestedLeague = state.selectedLeague;
+  if (state.categoryStrengthsLoadingLeague === requestedLeague) return;
+  const requestId = ++state.categoryStrengthsRequestId;
+  state.categoryStrengthsLoadingLeague = requestedLeague;
   els.retryLeaguesButton.classList.add("hidden");
   els.scoreboard.innerHTML = "";
   setAppStatus("Loading category strengths for every week...");
   try {
     const params = new URLSearchParams({ leagueKey: requestedLeague });
-    const data = await requestJson(`/api/league-strengths?${params}`);
+    const data = await getJson(`/api/league-strengths?${params}`);
+    if (requestId !== state.categoryStrengthsRequestId || state.selectedLeague !== requestedLeague) return;
     state.categoryStrengths = data;
     state.categoryStrengthsLeague = requestedLeague;
     if (!data.weeks?.length) {
@@ -341,7 +397,11 @@ async function loadCategoryStrengths() {
       showAverages(data.averages);
     }
   } catch (error) {
-    console.error(error);
+    if (requestId === state.categoryStrengthsRequestId) reportError(error);
+  } finally {
+    if (requestId === state.categoryStrengthsRequestId) {
+      state.categoryStrengthsLoadingLeague = "";
+    }
   }
 }
 
@@ -353,6 +413,7 @@ function showStrengths(data) {
 
 function showAverages(data) {
   if (!data) {
+    els.scoreboard.innerHTML = "";
     setAppStatus("No league averages were found for this league.");
     return;
   }
@@ -361,11 +422,7 @@ function showAverages(data) {
   setAppStatus(`Comparing team averages with the league average across ${data.weeksCompared} week${data.weeksCompared === 1 ? "" : "s"}.`);
 }
 
-async function requestJson(url) {
-  try {
-    return await getJson(url);
-  } catch (error) {
-    setAppStatus(error.message);
-    throw error;
-  }
+function reportError(error) {
+  console.error(error);
+  setAppStatus(error?.message || "Something went wrong. Try again.");
 }

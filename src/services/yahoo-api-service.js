@@ -29,7 +29,7 @@ export class YahooApiService {
   }
 
   async fetch(session, path, options = {}) {
-    if (Date.now() > session.token.expiresAt) await this.refreshToken(session);
+    await this.ensureValidToken(session);
     const retries = options.retries ?? this.retries;
     const timeoutMs = options.timeoutMs ?? this.timeoutMs;
 
@@ -45,7 +45,7 @@ export class YahooApiService {
   }
 
   async fetchUserInfo(session, allowTokenRefresh = true) {
-    if (Date.now() > session.token.expiresAt) await this.refreshToken(session);
+    await this.ensureValidToken(session);
     let response;
     let json;
 
@@ -109,7 +109,9 @@ export class YahooApiService {
       const error = new Error(message);
       error.status = response.status;
       error.retryable = response.status === 429 || response.status >= 500;
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
+        error.message = "Your Yahoo session expired. Sign out and sign in again.";
+      } else if (response.status === 403) {
         error.message = `${message}. Check that your Yahoo developer app has Fantasy Sports Read permission.`;
       }
       throw error;
@@ -118,6 +120,7 @@ export class YahooApiService {
   }
 
   saveToken(session, token) {
+    if (!token?.access_token) throw new Error("Yahoo did not return an access token. Sign in again.");
     session.token = {
       accessToken: token.access_token,
       refreshToken: token.refresh_token || session.token?.refreshToken,
@@ -125,15 +128,31 @@ export class YahooApiService {
     };
   }
 
+  async ensureValidToken(session) {
+    if (!session.token?.accessToken) {
+      const error = new Error("Not signed in");
+      error.status = 401;
+      throw error;
+    }
+    if (!Number.isFinite(session.token.expiresAt) || Date.now() >= session.token.expiresAt) {
+      await this.refreshToken(session);
+    }
+  }
+
   async refreshToken(session) {
+    if (session.tokenRefreshPromise) return session.tokenRefreshPromise;
     if (!session.token?.refreshToken) throw new Error("Yahoo session expired. Sign in again.");
-    const token = await this.requestToken(
-      new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: session.token.refreshToken
-      })
-    );
-    this.saveToken(session, token);
+    const refreshToken = session.token.refreshToken;
+    const refreshPromise = this.requestToken(
+      new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken })
+    ).then((token) => this.saveToken(session, token));
+    session.tokenRefreshPromise = refreshPromise;
+
+    try {
+      return await refreshPromise;
+    } finally {
+      if (session.tokenRefreshPromise === refreshPromise) delete session.tokenRefreshPromise;
+    }
   }
 
   async requestToken(body) {
