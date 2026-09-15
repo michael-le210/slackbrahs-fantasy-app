@@ -24,6 +24,8 @@ A small Yahoo Fantasy Basketball dashboard for comparing weekly category perform
 
 4. Open <https://localhost:3000> and sign in with Yahoo.
 
+For Namecheap cPanel Node.js hosting, use `server.cjs` as the application startup file.
+
 ## Tests
 
 ```bash

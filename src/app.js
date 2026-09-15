@@ -9,7 +9,7 @@ import { YahooApiService } from "./services/yahoo-api-service.js";
 import { sendJson } from "./utils/http.js";
 
 export function createApp(config) {
-  const sessionStore = new SessionStore({ secure: config.protocol === "https" });
+  const sessionStore = new SessionStore({ secure: config.secureCookies ?? config.protocol === "https" });
   const yahooApi = new YahooApiService(config);
   const leagueService = new LeagueService(yahooApi);
   const route = createRouter({
