@@ -80,3 +80,51 @@ test("fetches Yahoo profile information with the access token", async () => {
   assert.equal(requestedAuthorization, "Bearer access-token");
   assert.deepEqual(result, { name: "Michael", email: "michael@yahoo.com" });
 });
+
+test("shares one token refresh across concurrent Yahoo requests", async () => {
+  let refreshCalls = 0;
+  const service = new YahooApiService(baseConfig, async (url) => {
+    assert.equal(url, baseConfig.yahooTokenUrl);
+    refreshCalls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: "new-access-token", refresh_token: "new-refresh-token", expires_in: 3600 })
+    };
+  });
+  const expiredSession = {
+    token: {
+      accessToken: "expired-access-token",
+      refreshToken: "refresh-token",
+      expiresAt: Date.now() - 1
+    }
+  };
+
+  await Promise.all([
+    service.ensureValidToken(expiredSession),
+    service.ensureValidToken(expiredSession),
+    service.ensureValidToken(expiredSession)
+  ]);
+
+  assert.equal(refreshCalls, 1);
+  assert.equal(expiredSession.token.accessToken, "new-access-token");
+  assert.equal(expiredSession.token.refreshToken, "new-refresh-token");
+  assert.equal(expiredSession.tokenRefreshPromise, undefined);
+});
+
+test("reports an expired Yahoo session without suggesting an app permission problem", async () => {
+  const service = new YahooApiService(baseConfig, async () => ({
+    ok: false,
+    status: 401,
+    json: async () => ({ error: { description: "Unauthorized" } })
+  }));
+  const noRefreshSession = {
+    token: { accessToken: "expired", expiresAt: Date.now() + 60_000 }
+  };
+
+  await assert.rejects(
+    service.fetch(noRefreshSession, "/test"),
+    (error) => error.status === 401 && /session expired/i.test(error.message) && !/Fantasy Sports Read/.test(error.message)
+  );
+});

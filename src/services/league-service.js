@@ -11,20 +11,25 @@ import {
 import { mapWithConcurrency } from "../utils/async.js";
 
 export class LeagueService {
-  constructor(yahooApi) {
+  constructor(yahooApi, { cacheTtlMs = 5 * 60_000 } = {}) {
     this.yahooApi = yahooApi;
+    this.cacheTtlMs = cacheTtlMs;
   }
 
   async listHistoricalH2h(session) {
-    if (session.h2hLeagues) return session.h2hLeagues;
+    if (session.h2hLeagues && isFresh(session.h2hLeaguesFetchedAt, this.cacheTtlMs)) {
+      return session.h2hLeagues;
+    }
 
     const gamesData = await this.yahooApi.fetch(session, yahooApiPaths.userNbaGames, {
       timeoutMs: 8_000,
       retries: 1
     });
-    const games = extractGames(gamesData)
-      .filter((game) => !game.code || game.code === "nba")
-      .sort((a, b) => (b.season || 0) - (a.season || 0));
+    const games = keepRecentSeasons(
+      extractGames(gamesData)
+        .filter((game) => !game.code || game.code === "nba")
+        .sort((a, b) => (b.season || 0) - (a.season || 0))
+    );
 
     const leagueGroups = await mapWithConcurrency(games, 4, async (game) => {
       try {
@@ -43,6 +48,7 @@ export class LeagueService {
       .flat()
       .filter((league) => league.scoringType.toLowerCase().startsWith("head"))
       .sort((a, b) => (b.season || 0) - (a.season || 0));
+    session.h2hLeaguesFetchedAt = Date.now();
     return session.h2hLeagues;
   }
 
@@ -99,8 +105,28 @@ export class LeagueService {
 
   async getCategoryStrengths(session, leagueKey) {
     session.categoryStrengths ||= new Map();
-    if (session.categoryStrengths.has(leagueKey)) return session.categoryStrengths.get(leagueKey);
+    const cached = session.categoryStrengths.get(leagueKey);
+    if (cached && isFresh(cached.fetchedAt, this.cacheTtlMs)) return cached.data;
 
+    session.categoryStrengthRequests ||= new Map();
+    if (session.categoryStrengthRequests.has(leagueKey)) {
+      return session.categoryStrengthRequests.get(leagueKey);
+    }
+
+    const request = this.loadCategoryStrengths(session, leagueKey);
+    session.categoryStrengthRequests.set(leagueKey, request);
+    try {
+      const strengths = await request;
+      session.categoryStrengths.set(leagueKey, { data: strengths, fetchedAt: Date.now() });
+      return strengths;
+    } finally {
+      if (session.categoryStrengthRequests.get(leagueKey) === request) {
+        session.categoryStrengthRequests.delete(leagueKey);
+      }
+    }
+  }
+
+  async loadCategoryStrengths(session, leagueKey) {
     const league = session.h2hLeagues?.find((item) => item.leagueKey === leagueKey);
     const startWeek = Math.max(1, league?.startWeek || 1);
     const seasonEndWeek = league?.endWeek || league?.currentWeek || 20;
@@ -135,9 +161,7 @@ export class LeagueService {
         return { week, matchups: [] };
       }
     });
-    const strengths = buildCategoryStrengths(weeklyScoreboards, statCategories, userTeamKeys);
-    session.categoryStrengths.set(leagueKey, strengths);
-    return strengths;
+    return buildCategoryStrengths(weeklyScoreboards, statCategories, userTeamKeys);
   }
 
   async getStatCategories(session, leagueKey) {
@@ -149,4 +173,15 @@ export class LeagueService {
     session.statCategories.set(leagueKey, categories);
     return categories;
   }
+}
+
+function keepRecentSeasons(games, seasonCount = 5) {
+  const seasons = games.map((game) => game.season).filter(Number.isFinite);
+  if (!seasons.length) return games.slice(0, seasonCount);
+  const latestSeason = Math.max(...seasons);
+  return games.filter((game) => Number.isFinite(game.season) && game.season >= latestSeason - seasonCount + 1);
+}
+
+function isFresh(timestamp, ttlMs) {
+  return Number.isFinite(timestamp) && Date.now() - timestamp < ttlMs;
 }

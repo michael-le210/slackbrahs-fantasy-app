@@ -1,28 +1,55 @@
 import crypto from "node:crypto";
 
+const defaultMaxAgeSeconds = 60 * 60 * 24 * 30;
+
 export class SessionStore {
-  constructor() {
+  constructor({ maxAgeSeconds = defaultMaxAgeSeconds, secure = false } = {}) {
+    this.maxAgeSeconds = maxAgeSeconds;
+    this.secure = secure;
     this.sessions = new Map();
+    this.nextCleanupAt = 0;
   }
 
   get(req, res) {
+    const now = Date.now();
+    this.cleanup(now);
     const cookies = parseCookies(req.headers.cookie || "");
     let id = cookies.yfb_session;
-    if (!id || !this.sessions.has(id)) {
+    let session = id ? this.sessions.get(id) : null;
+    if (!session || this.isExpired(session, now)) {
+      if (id) this.sessions.delete(id);
       id = crypto.randomBytes(24).toString("hex");
-      this.sessions.set(id, { id, createdAt: Date.now() });
-      res.setHeader("Set-Cookie", sessionCookie(id));
+      session = { id, createdAt: now, lastAccessedAt: now };
+      this.sessions.set(id, session);
+      res.setHeader("Set-Cookie", this.cookie(id));
     }
-    return this.sessions.get(id);
+    session.lastAccessedAt = now;
+    return session;
   }
 
   destroy(session) {
     this.sessions.delete(session.id);
   }
+
+  cookie(value, maxAge = this.maxAgeSeconds) {
+    return sessionCookie(value, maxAge, this.secure);
+  }
+
+  cleanup(now = Date.now()) {
+    if (now < this.nextCleanupAt) return;
+    for (const [id, session] of this.sessions) {
+      if (this.isExpired(session, now)) this.sessions.delete(id);
+    }
+    this.nextCleanupAt = now + Math.min(this.maxAgeSeconds * 1000, 60 * 60_000);
+  }
+
+  isExpired(session, now = Date.now()) {
+    return now - (session.lastAccessedAt || session.createdAt) >= this.maxAgeSeconds * 1000;
+  }
 }
 
-export function sessionCookie(value, maxAge = 60 * 60 * 24 * 30) {
-  return `yfb_session=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+export function sessionCookie(value, maxAge = defaultMaxAgeSeconds, secure = false) {
+  return `yfb_session=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
 }
 
 export function parseCookies(cookieHeaderValue) {
@@ -34,7 +61,15 @@ export function parseCookies(cookieHeaderValue) {
       .map((part) => {
         const index = part.indexOf("=");
         if (index === -1) return [part, ""];
-        return [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
+        return [part.slice(0, index), safeDecode(part.slice(index + 1))];
       })
   );
+}
+
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }

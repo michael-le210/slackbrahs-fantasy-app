@@ -557,24 +557,21 @@ select {
 }
 
 .average-value.win {
-  background: #e9f8e5;
   color: #236b35;
 }
 
 .average-value.loss {
-  background: #ffe4e4;
   color: #984040;
 }
 
 .average-value.tie,
 .average-value.unavailable {
-  background: #fff;
   color: var(--ink);
 }
 
 .league-average-row .team-cell,
 .league-average-row .league-average-value {
-  background: #e7f7fb;
+  background: transparent;
 }
 
 .average-note {
@@ -737,6 +734,13 @@ select {
 .view-tab.active {
   color: var(--accent);
   box-shadow: 0 3px 10px rgba(36, 43, 75, 0.1);
+}
+
+.button:focus-visible,
+.profile-action:focus-visible,
+.view-tab:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .strength-card {
@@ -971,22 +975,23 @@ select {
   background: #173346;
 }
 
-:root[data-theme="dark"] .league-average-row .team-cell,
-:root[data-theme="dark"] .league-average-row .league-average-value {
-  background: #173346;
-}
-
 :root[data-theme="dark"] .comparison-value.win,
-:root[data-theme="dark"] .strength-win,
-:root[data-theme="dark"] .average-value.win {
+:root[data-theme="dark"] .strength-win {
   background: #193d31;
   color: #7ce5a5;
 }
 
 :root[data-theme="dark"] .comparison-value.loss,
-:root[data-theme="dark"] .strength-loss,
-:root[data-theme="dark"] .average-value.loss {
+:root[data-theme="dark"] .strength-loss {
   background: #452631;
+  color: #ff9da9;
+}
+
+:root[data-theme="dark"] .average-value.win {
+  color: #7ce5a5;
+}
+
+:root[data-theme="dark"] .average-value.loss {
   color: #ff9da9;
 }
 
@@ -1008,40 +1013,6 @@ select {
 
 :root[data-theme="dark"] .view-tab.active {
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.24);
-}
-
-/* League averages uses text-only comparison cues; keep the background emphasis for your row. */
-.average-table .team-cell,
-.average-table .average-value.win,
-.average-table .average-value.loss,
-.average-table .average-value.tie,
-.average-table .average-value.unavailable,
-.average-table .league-average-row .league-average-value {
-  background: transparent;
-}
-
-.average-table .my-team-row .team-cell,
-.average-table .my-team-row .average-value {
-  background: #e7f7fb;
-}
-
-:root[data-theme="dark"] .average-table .my-team-row .team-cell,
-:root[data-theme="dark"] .average-table .my-team-row .average-value {
-  background: #173346;
-}
-
-:root[data-theme="dark"] .average-table .team-cell,
-:root[data-theme="dark"] .average-table .average-value.win,
-:root[data-theme="dark"] .average-table .average-value.loss,
-:root[data-theme="dark"] .average-table .average-value.tie,
-:root[data-theme="dark"] .average-table .average-value.unavailable,
-:root[data-theme="dark"] .average-table .league-average-row .league-average-value {
-  background: transparent;
-}
-
-:root[data-theme="dark"] .average-table .my-team-row .team-cell,
-:root[data-theme="dark"] .average-table .my-team-row .average-value {
-  background: #173346;
 }
 
 @media (max-width: 960px) {

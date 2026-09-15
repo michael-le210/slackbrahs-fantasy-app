@@ -3,3 +3,4 @@ node_modules
 .tools/
 .certs/
 .DS_Store
+AGENTS.md

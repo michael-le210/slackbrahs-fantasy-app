@@ -1,13 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 loadEnv(join(projectRoot, ".env"));
 
-const certFile = process.env.SSL_CERT_FILE || join(projectRoot, ".certs", "localhost.crt");
-const keyFile = process.env.SSL_KEY_FILE || join(projectRoot, ".certs", "localhost.key");
+const certFile = resolveConfigPath(process.env.SSL_CERT_FILE, ".certs/localhost.crt");
+const keyFile = resolveConfigPath(process.env.SSL_KEY_FILE, ".certs/localhost.key");
+const host = process.env.HOST || "localhost";
+const port = readInteger("PORT", 3000, 1, 65_535);
+const protocol = existsSync(certFile) && existsSync(keyFile) ? "https" : "http";
 
 export const config = Object.freeze({
   projectRoot,
@@ -15,19 +18,28 @@ export const config = Object.freeze({
   viewsDir: join(projectRoot, "src", "views"),
   clientId: process.env.YAHOO_CLIENT_ID,
   clientSecret: process.env.YAHOO_CLIENT_SECRET,
-  redirectUri: process.env.YAHOO_REDIRECT_URI || "https://localhost:3000/auth/callback",
-  host: process.env.HOST || "localhost",
-  port: Number(process.env.PORT || 3000),
+  redirectUri: process.env.YAHOO_REDIRECT_URI || `${protocol}://${host}:${port}/auth/callback`,
+  host,
+  port,
   certFile,
   keyFile,
-  protocol: existsSync(certFile) && existsSync(keyFile) ? "https" : "http",
+  protocol,
   yahooAuthUrl: "https://api.login.yahoo.com/oauth2/request_auth",
   yahooTokenUrl: "https://api.login.yahoo.com/oauth2/get_token",
   yahooUserInfoUrl: "https://api.login.yahoo.com/openid/v1/userinfo",
   yahooApiBase: "https://fantasysports.yahooapis.com/fantasy/v2",
-  yahooRequestTimeoutMs: Number(process.env.YAHOO_REQUEST_TIMEOUT_MS || 10_000),
-  yahooRequestRetries: Number(process.env.YAHOO_REQUEST_RETRIES || 2)
+  yahooRequestTimeoutMs: readInteger("YAHOO_REQUEST_TIMEOUT_MS", 10_000, 1_000, 60_000),
+  yahooRequestRetries: readInteger("YAHOO_REQUEST_RETRIES", 2, 0, 5)
 });
+
+function readInteger(name, fallback, minimum, maximum) {
+  const value = Number(process.env[name]);
+  return Number.isInteger(value) && value >= minimum && value <= maximum ? value : fallback;
+}
+
+function resolveConfigPath(value, fallback) {
+  return resolve(projectRoot, value || fallback);
+}
 
 function loadEnv(envPath) {
   try {

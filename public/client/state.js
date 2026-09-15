@@ -5,8 +5,11 @@ export function createAppState() {
     profile: null,
     signedIn: false,
     latestScoreboard: null,
+    weeklyRequestId: 0,
     categoryStrengths: null,
     categoryStrengthsLeague: "",
+    categoryStrengthsRequestId: 0,
+    categoryStrengthsLoadingLeague: "",
     activeView: "comparison",
     showRanks: true,
     theme: "dark"
