@@ -23,6 +23,18 @@ const session = {
   }
 };
 
+test("builds a Yahoo OpenID Connect authorization URL with a nonce", () => {
+  const service = new YahooApiService(baseConfig);
+  const url = new URL(service.authorizationUrl("state-value", "nonce-value"));
+
+  assert.equal(url.searchParams.get("client_id"), baseConfig.clientId);
+  assert.equal(url.searchParams.get("redirect_uri"), baseConfig.redirectUri);
+  assert.equal(url.searchParams.get("response_type"), "code");
+  assert.equal(url.searchParams.get("scope"), "openid");
+  assert.equal(url.searchParams.get("nonce"), "nonce-value");
+  assert.equal(url.searchParams.get("state"), "state-value");
+});
+
 test("times out when Yahoo stalls while streaming the JSON body", async () => {
   const fetchImpl = async (url, options) => ({
     ok: true,

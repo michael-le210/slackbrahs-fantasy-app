@@ -6,13 +6,14 @@ export class YahooApiService {
     this.retries = config.yahooRequestRetries ?? 2;
   }
 
-  authorizationUrl(state) {
+  authorizationUrl(state, nonce) {
     const params = new URLSearchParams({
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
       response_type: "code",
       language: "en-us",
       scope: "openid",
+      nonce,
       state
     });
     return `${this.config.yahooAuthUrl}?${params}`;

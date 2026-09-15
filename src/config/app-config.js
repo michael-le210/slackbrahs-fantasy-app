@@ -11,6 +11,8 @@ const keyFile = resolveConfigPath(process.env.SSL_KEY_FILE, ".certs/localhost.ke
 const host = process.env.HOST || "localhost";
 const port = readInteger("PORT", 3000, 1, 65_535);
 const protocol = existsSync(certFile) && existsSync(keyFile) ? "https" : "http";
+const redirectUri = process.env.YAHOO_REDIRECT_URI || `${protocol}://${host}:${port}/auth/callback`;
+const secureCookies = protocol === "https" || redirectUri.startsWith("https://");
 
 export const config = Object.freeze({
   projectRoot,
@@ -18,7 +20,8 @@ export const config = Object.freeze({
   viewsDir: join(projectRoot, "src", "views"),
   clientId: process.env.YAHOO_CLIENT_ID,
   clientSecret: process.env.YAHOO_CLIENT_SECRET,
-  redirectUri: process.env.YAHOO_REDIRECT_URI || `${protocol}://${host}:${port}/auth/callback`,
+  redirectUri,
+  secureCookies,
   host,
   port,
   certFile,

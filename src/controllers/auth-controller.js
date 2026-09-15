@@ -22,8 +22,9 @@ export class AuthController {
     }
 
     session.oauthState = crypto.randomBytes(16).toString("hex");
-    appendCookie(res, oauthStateCookie(session.oauthState, 600, this.config.protocol === "https"));
-    return redirect(res, this.yahooApi.authorizationUrl(session.oauthState));
+    session.oauthNonce = crypto.randomBytes(24).toString("base64url");
+    appendCookie(res, oauthStateCookie(session.oauthState, 600, this.secureCookies));
+    return redirect(res, this.yahooApi.authorizationUrl(session.oauthState, session.oauthNonce));
   }
 
   async callback({ req, res, session, url }) {
@@ -32,7 +33,9 @@ export class AuthController {
     const oauthError = url.searchParams.get("error");
     const oauthErrorDescription = url.searchParams.get("error_description");
     if (oauthError) {
-      appendCookie(res, oauthStateCookie("", 0, this.config.protocol === "https"));
+      delete session.oauthState;
+      delete session.oauthNonce;
+      appendCookie(res, oauthStateCookie("", 0, this.secureCookies));
       return sendHtml(
         res,
         `<h1>Yahoo sign-in was not completed</h1><p>${escapeHtml(oauthErrorDescription || oauthError)}. Return to the app and try again.</p>`,
@@ -42,14 +45,17 @@ export class AuthController {
 
     const cookieState = parseCookies(req.headers.cookie || "")[oauthStateCookieName];
     if (!code || !state || (state !== session.oauthState && state !== cookieState)) {
-      appendCookie(res, oauthStateCookie("", 0, this.config.protocol === "https"));
+      delete session.oauthState;
+      delete session.oauthNonce;
+      appendCookie(res, oauthStateCookie("", 0, this.secureCookies));
       return sendHtml(res, "<h1>Invalid Yahoo callback</h1><p>Try signing in again.</p>", 400);
     }
 
     const token = await this.yahooApi.exchangeAuthorizationCode(code);
     this.yahooApi.saveToken(session, token);
     delete session.oauthState;
-    appendCookie(res, oauthStateCookie("", 0, this.config.protocol === "https"));
+    delete session.oauthNonce;
+    appendCookie(res, oauthStateCookie("", 0, this.secureCookies));
     return redirect(res, "/");
   }
 
@@ -58,9 +64,13 @@ export class AuthController {
     return redirect(res, "/", {
       "Set-Cookie": [
         this.sessionStore.cookie("", 0),
-        oauthStateCookie("", 0, this.config.protocol === "https")
+        oauthStateCookie("", 0, this.secureCookies)
       ]
     });
+  }
+
+  get secureCookies() {
+    return this.config.secureCookies ?? this.config.protocol === "https";
   }
 }
 
