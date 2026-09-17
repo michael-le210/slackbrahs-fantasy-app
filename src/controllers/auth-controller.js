@@ -6,10 +6,11 @@ import { redirect, sendHtml } from "../utils/http.js";
 const oauthStateCookieName = "yfb_oauth_state";
 
 export class AuthController {
-  constructor({ config, yahooApi, sessionStore }) {
+  constructor({ config, yahooApi, sessionStore, activityLogger = null }) {
     this.config = config;
     this.yahooApi = yahooApi;
     this.sessionStore = sessionStore;
+    this.activityLogger = activityLogger;
   }
 
   signIn({ res, session }) {
@@ -24,6 +25,7 @@ export class AuthController {
     session.oauthState = crypto.randomBytes(16).toString("hex");
     session.oauthNonce = crypto.randomBytes(24).toString("base64url");
     appendCookie(res, oauthStateCookie(session.oauthState, 600, this.secureCookies));
+    this.logActivity("sign_in_started", "/auth/yahoo", { req: null, res, session });
     return redirect(res, this.yahooApi.authorizationUrl(session.oauthState, session.oauthNonce));
   }
 
@@ -36,6 +38,7 @@ export class AuthController {
       delete session.oauthState;
       delete session.oauthNonce;
       appendCookie(res, oauthStateCookie("", 0, this.secureCookies));
+      this.logActivity("sign_in_failed", "/auth/callback", { req, res, session, metadata: { reason: "oauth_error" } });
       return sendHtml(
         res,
         `<h1>Yahoo sign-in was not completed</h1><p>${escapeHtml(oauthErrorDescription || oauthError)}. Return to the app and try again.</p>`,
@@ -48,18 +51,32 @@ export class AuthController {
       delete session.oauthState;
       delete session.oauthNonce;
       appendCookie(res, oauthStateCookie("", 0, this.secureCookies));
+      this.logActivity("sign_in_failed", "/auth/callback", { req, res, session, metadata: { reason: "invalid_callback" } });
       return sendHtml(res, "<h1>Invalid Yahoo callback</h1><p>Try signing in again.</p>", 400);
     }
 
-    const token = await this.yahooApi.exchangeAuthorizationCode(code);
+    let token;
+    try {
+      token = await this.yahooApi.exchangeAuthorizationCode(code);
+    } catch (error) {
+      this.logActivity("sign_in_failed", "/auth/callback", { req, res, session, metadata: { reason: "token_exchange" } });
+      throw error;
+    }
     this.yahooApi.saveToken(session, token);
+    try {
+      session.profile = await this.yahooApi.fetchUserInfo(session);
+    } catch (error) {
+      console.warn(`Unable to load Yahoo profile after sign-in: ${error.message}`);
+    }
     delete session.oauthState;
     delete session.oauthNonce;
     appendCookie(res, oauthStateCookie("", 0, this.secureCookies));
+    this.logActivity("sign_in", "/auth/callback", { req, res, session });
     return redirect(res, "/");
   }
 
   logout({ res, session }) {
+    this.logActivity("sign_out", "/auth/logout", { req: null, res, session });
     this.sessionStore.destroy(session);
     return redirect(res, "/", {
       "Set-Cookie": [
@@ -71,6 +88,11 @@ export class AuthController {
 
   get secureCookies() {
     return this.config.secureCookies ?? this.config.protocol === "https";
+  }
+
+  logActivity(eventName, route, { req, res, session, metadata = null }) {
+    if (!this.activityLogger) return;
+    void this.activityLogger.log({ eventName, route, req, res, session, metadata });
   }
 }
 

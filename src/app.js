@@ -5,6 +5,7 @@ import { PageController } from "./controllers/page-controller.js";
 import { SessionStore } from "./middleware/session-store.js";
 import { createRouter } from "./routes/router.js";
 import { LeagueService } from "./services/league-service.js";
+import { ActivityLogger } from "./services/activity-logger.js";
 import { YahooApiService } from "./services/yahoo-api-service.js";
 import { sendJson } from "./utils/http.js";
 
@@ -12,11 +13,13 @@ export function createApp(config) {
   const sessionStore = new SessionStore({ secure: config.secureCookies ?? config.protocol === "https" });
   const yahooApi = new YahooApiService(config);
   const leagueService = new LeagueService(yahooApi);
+  const activityLogger = new ActivityLogger(config);
   const route = createRouter({
     appController: new AppController(config, yahooApi),
-    authController: new AuthController({ config, yahooApi, sessionStore }),
+    authController: new AuthController({ config, yahooApi, sessionStore, activityLogger }),
     leagueController: new LeagueController(leagueService),
-    pageController: new PageController(config)
+    pageController: new PageController(config),
+    activityLogger
   });
 
   return async function requestHandler(req, res) {

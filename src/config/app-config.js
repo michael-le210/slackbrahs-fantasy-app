@@ -32,7 +32,15 @@ export const config = Object.freeze({
   yahooUserInfoUrl: "https://api.login.yahoo.com/openid/v1/userinfo",
   yahooApiBase: "https://fantasysports.yahooapis.com/fantasy/v2",
   yahooRequestTimeoutMs: readInteger("YAHOO_REQUEST_TIMEOUT_MS", 10_000, 1_000, 60_000),
-  yahooRequestRetries: readInteger("YAHOO_REQUEST_RETRIES", 2, 0, 5)
+  yahooRequestRetries: readInteger("YAHOO_REQUEST_RETRIES", 2, 0, 5),
+  mysql: Object.freeze({
+    host: process.env.MYSQL_HOST,
+    port: readInteger("MYSQL_PORT", 3306, 1, 65_535),
+    database: process.env.MYSQL_DATABASE,
+    user: process.env.MYSQL_USER,
+    password: process.env.MYSQL_PASSWORD,
+    connectionLimit: readInteger("MYSQL_CONNECTION_LIMIT", 5, 1, 20)
+  })
 });
 
 function readInteger(name, fallback, minimum, maximum) {
