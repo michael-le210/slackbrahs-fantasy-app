@@ -26,6 +26,30 @@ A small Yahoo Fantasy Basketball dashboard for comparing weekly category perform
 
 For Namecheap cPanel Node.js hosting, use `server.cjs` as the application startup file.
 
+## Optional activity logging
+
+To record sign-ins and useful app activity, create a MySQL database and user, then add these variables to the cPanel Node.js application:
+
+```text
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DATABASE=your_database_name
+MYSQL_USER=your_database_user
+MYSQL_PASSWORD=your_database_password
+MYSQL_CONNECTION_LIMIT=5
+```
+
+The app creates an `activity_logs` table automatically when it starts. The table records the event, Yahoo user ID, display name, route, status, optional week, and timestamp. It does not store OAuth tokens, Yahoo email addresses, or secrets. If the database is unavailable, the app continues to work and logs a warning.
+
+To view recent activity in phpMyAdmin:
+
+```sql
+SELECT created_at, event_name, display_name, route, status_code, metadata
+FROM activity_logs
+ORDER BY created_at DESC
+LIMIT 100;
+```
+
 ## Tests
 
 ```bash
