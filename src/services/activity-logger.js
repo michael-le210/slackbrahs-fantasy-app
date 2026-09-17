@@ -25,12 +25,21 @@ const insertSql = `
 `;
 
 export class ActivityLogger {
-  constructor(config, pool = null) {
+  constructor(config, pool = null, diagnostics = console) {
     const mysqlConfig = config.mysql || {};
-    const hasDatabaseConfig = Boolean(
-      mysqlConfig.host && mysqlConfig.database && mysqlConfig.user && mysqlConfig.password
-    );
+    const requiredSettings = {
+      MYSQL_HOST: mysqlConfig.host,
+      MYSQL_DATABASE: mysqlConfig.database,
+      MYSQL_USER: mysqlConfig.user,
+      MYSQL_PASSWORD: mysqlConfig.password
+    };
+    const missingSettings = Object.entries(requiredSettings)
+      .filter(([, value]) => !value)
+      .map(([name]) => name);
+    const hasDatabaseConfig = missingSettings.length === 0;
 
+    this.diagnostics = diagnostics;
+    this.warningShown = false;
     this.enabled = Boolean(pool || hasDatabaseConfig);
     this.pool = pool || (this.enabled ? mysql.createPool({
       host: mysqlConfig.host,
@@ -45,13 +54,20 @@ export class ActivityLogger {
       queueLimit: 0,
       enableKeepAlive: true
     }) : null);
-    this.warningShown = false;
+
+    if (!this.enabled) {
+      this.diagnostics.warn(
+        `Activity logging disabled: missing ${missingSettings.join(", ")}`
+      );
+    }
+
     this.schemaReady = this.enabled ? this.initialize() : Promise.resolve(false);
   }
 
   async initialize() {
     try {
       await this.pool.query(createTableSql);
+      this.diagnostics.warn("Activity logging connected to MySQL.");
       return true;
     } catch (error) {
       this.warn(error);
@@ -83,7 +99,7 @@ export class ActivityLogger {
   warn(error) {
     if (this.warningShown) return;
     this.warningShown = true;
-    console.warn(`Activity logging is unavailable: ${error.message}`);
+    this.diagnostics.warn(`Activity logging is unavailable: ${error.message}`);
   }
 }
 
@@ -104,4 +120,3 @@ function serializeMetadata(metadata) {
     return null;
   }
 }
-

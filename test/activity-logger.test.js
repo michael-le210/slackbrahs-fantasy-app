@@ -6,6 +6,7 @@ import { ActivityLogger } from "../src/services/activity-logger.js";
 test("creates the activity table and records a signed-in event", async () => {
   let schemaSql = "";
   let insertParams;
+  const messages = [];
   const pool = {
     query: async (sql) => {
       schemaSql = sql;
@@ -14,7 +15,9 @@ test("creates the activity table and records a signed-in event", async () => {
       insertParams = params;
     }
   };
-  const logger = new ActivityLogger({}, pool);
+  const logger = new ActivityLogger({}, pool, {
+    warn: (message) => messages.push(message)
+  });
 
   await logger.log({
     eventName: "sign_in",
@@ -25,6 +28,7 @@ test("creates the activity table and records a signed-in event", async () => {
   });
 
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS activity_logs/);
+  assert.deepEqual(messages, ["Activity logging connected to MySQL."]);
   assert.deepEqual(insertParams, [
     "sign_in",
     "yahoo-user-1",
@@ -37,6 +41,7 @@ test("creates the activity table and records a signed-in event", async () => {
 });
 
 test("does not throw when activity logging is unavailable", async () => {
+  const messages = [];
   const logger = new ActivityLogger({}, {
     query: async () => {
       throw new Error("database offline");
@@ -44,6 +49,8 @@ test("does not throw when activity logging is unavailable", async () => {
     execute: async () => {
       throw new Error("database offline");
     }
+  }, {
+    warn: (message) => messages.push(message)
   });
 
   await assert.doesNotReject(() => logger.log({
@@ -53,5 +60,23 @@ test("does not throw when activity logging is unavailable", async () => {
     res: { statusCode: 200 },
     session: {}
   }));
+
+  assert.deepEqual(messages, ["Activity logging is unavailable: database offline"]);
 });
 
+test("reports exactly which MySQL settings are missing", async () => {
+  const messages = [];
+  const logger = new ActivityLogger({
+    mysql: {
+      host: "localhost",
+      database: "slackbrahs",
+      user: "logger"
+    }
+  }, null, {
+    warn: (message) => messages.push(message)
+  });
+
+  assert.equal(logger.enabled, false);
+  assert.equal(await logger.schemaReady, false);
+  assert.deepEqual(messages, ["Activity logging disabled: missing MYSQL_PASSWORD"]);
+});
